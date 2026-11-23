@@ -1,9 +1,15 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path')
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.use('/img', express.static(path.join(__dirname, 'img')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/game.js', (req, res) => res.sendFile(path.join(__dirname, 'game.js')));
+app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css')));
 
 // 30 Boss Data (Stored in RAM, responds in milliseconds)
 const bosses = [
@@ -39,11 +45,14 @@ const bosses = [
   { id: 30, name: "Endgegner", duration_seconds: 120 }
 ];
 
-// API endpoint that returns a random boss
-app.get('/api/v1/bosses/random', (req, res) => {
-  const randomIndex = Math.floor(Math.random() * bosses.length);
-  res.json(bosses[randomIndex]);
-});
+function getRandomBoss(req, res) {
+  const boss = bosses[Math.floor(Math.random() * bosses.length)];
+  res.json({ ...boss, image: `/img/${boss.id}.png` });
+}
+
+// API endpoints that return a random boss
+app.get('/api/v1/bosses/random', getRandomBoss);
+app.get('/api/boss', getRandomBoss);
 
 // Start the server
 const PORT = process.env.PORT || 3000;

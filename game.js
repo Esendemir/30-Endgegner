@@ -16,7 +16,7 @@ function setBossImage(src) {
 
 async function loadBossData() {
   try {
-    const response = await fetch('/api/boss');
+    const response = await fetch('/api/v1/bosses/random');
     const data = await response.json();
 
     if (data && data.name) {
