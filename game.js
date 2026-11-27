@@ -35,7 +35,7 @@ loadBossData();
 
 const battleBox = {
   x: 185,
-  y: 200,
+  y: 170,
   width: 270,
   height: 245,
   borderWidth: 4
