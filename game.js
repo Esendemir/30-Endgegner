@@ -51,7 +51,7 @@ const battleBox = {
 const player = {
   x: battleBox.x + battleBox.width / 2 - 8,
   y: battleBox.y + battleBox.height / 2 - 8,
-  size: 16,
+  size: 9,
   speed: 4
 };
 
@@ -72,12 +72,12 @@ const ATTACK = {
   startSpeed: 80,      // başlangıç hızı (piksel/sn)
   maxSpeed: 180,       // maksimum hız
   speedGrowth: 1.5,    // her saniye hız artışı
-  minOffset: 30,       // kutunun dışından minimum uzaklık
-  maxOffset: 40,       // kutunun dışından maksimum uzaklık
+  minOffset: 50,       // kutunun dışından minimum uzaklık
+  maxOffset: 70,       // kutunun dışından maksimum uzaklık
   lineChance: 0.4,     // çizgi olma ihtimali (kalanı 1px kare)
   lineLength: [20, 50],
   lineThickness: 3,
-  dotSize: 2           // 1px çok küçük görünürse 2 yap
+  dotSize: 4           // 1px çok küçük görünürse 2 yap
 };
 
 const attacks = [];
