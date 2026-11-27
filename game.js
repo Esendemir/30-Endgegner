@@ -72,8 +72,8 @@ const ATTACK = {
   startSpeed: 80,      // başlangıç hızı (piksel/sn)
   maxSpeed: 180,       // maksimum hız
   speedGrowth: 1.5,    // her saniye hız artışı
-  minOffset: 50,       // kutunun dışından minimum uzaklık
-  maxOffset: 70,       // kutunun dışından maksimum uzaklık
+  minOffset: 30,       // kutunun dışından minimum uzaklık
+  maxOffset: 40,       // kutunun dışından maksimum uzaklık
   lineChance: 0.4,     // çizgi olma ihtimali (kalanı 1px kare)
   lineLength: [20, 50],
   lineThickness: 3,
