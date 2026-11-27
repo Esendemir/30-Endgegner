@@ -29,7 +29,7 @@ async function loadBossData() {
     if (data && data.image) {
       setBossImage(data.image);
     }
-    const waitMs= data.next_chamge_seconds * 1000;
+    const waitMs = (Number(data.next_change_seconds) || 300) * 1000;
     changeAt = Date.now() + waitMs;
     clearTimeout(bossTimer);
     bossTimer = setTimeout(loadBossData, waitMs + 500);
@@ -49,8 +49,8 @@ const battleBox = {
 };
 
 const player = {
-  x: 312,
-  y: 292,
+  x: battleBox.x + battleBox.width / 2 - 8,
+  y: battleBox.y + battleBox.height / 2 - 8,
   size: 16,
   speed: 4
 };
@@ -64,6 +64,94 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => {
   keys[e.key] = false;
 });
+
+// ===== SALDIRI SİSTEMİ =====
+const ATTACK = {
+  startRate: 1.5,      // başlangıçta saniyede kaç saldırı
+  maxRate: 20,         // üst sınır: saniyede en fazla 20 saldırı
+  rateGrowth: 0.15,    // her saniye hız artışı (saldırı sayısı/sn)
+  startSpeed: 80,      // başlangıç hızı (piksel/sn)
+  maxSpeed: 260,       // maksimum hız
+  speedGrowth: 1.5,    // her saniye hız artışı
+  minOffset: 10,       // kutunun dışından minimum uzaklık
+  maxOffset: 20,       // kutunun dışından maksimum uzaklık
+  lineChance: 0.4,     // çizgi olma ihtimali (kalanı 1px kare)
+  lineLength: [20, 50],
+  lineThickness: 2,
+  dotSize: 1           // 1px çok küçük görünürse 2 yap
+};
+
+const attacks = [];
+let attackStartTime = performance.now();
+let lastAttackTime = performance.now();
+let spawnAccumulator = 0;
+
+function rand(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function spawnAttack(speed) {
+  const b = battleBox;
+  const side = Math.floor(Math.random() * 4);
+  const offset = rand(ATTACK.minOffset, ATTACK.maxOffset);
+  const isLine = Math.random() < ATTACK.lineChance;
+  const length = isLine ? rand(ATTACK.lineLength[0], ATTACK.lineLength[1]) : ATTACK.dotSize;
+  const thick = isLine ? ATTACK.lineThickness : ATTACK.dotSize;
+
+  let a;
+  if (side === 0 || side === 1) {
+    a = { w: thick, h: length };
+    a.y = b.y + rand(0, b.height - a.h);
+    a.x = side === 0 ? b.x - offset - a.w : b.x + b.width + offset;
+    a.vx = side === 0 ? speed : -speed;
+    a.vy = 0;
+  } else {
+    a = { w: length, h: thick };
+    a.x = b.x + rand(0, b.width - a.w);
+    a.y = side === 2 ? b.y - offset - a.h : b.y + b.height + offset;
+    a.vx = 0;
+    a.vy = side === 2 ? speed : -speed;
+  }
+  attacks.push(a);
+}
+
+function updateAttacks() {
+  const now = performance.now();
+  const dt = Math.min((now - lastAttackTime) / 1000, 0.05);
+  lastAttackTime = now;
+
+  const elapsed = (now - attackStartTime) / 1000;
+  const rate = Math.min(ATTACK.maxRate, ATTACK.startRate + elapsed * ATTACK.rateGrowth);
+  const speed = Math.min(ATTACK.maxSpeed, ATTACK.startSpeed + elapsed * ATTACK.speedGrowth);
+
+  spawnAccumulator += rate * dt;
+  while (spawnAccumulator >= 1) {
+    spawnAttack(speed);
+    spawnAccumulator -= 1;
+  }
+
+  const b = battleBox;
+  const margin = 30;
+  for (let i = attacks.length - 1; i >= 0; i--) {
+    const a = attacks[i];
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+
+    if (
+      a.x > b.x + b.width + margin || a.x + a.w < b.x - margin ||
+      a.y > b.y + b.height + margin || a.y + a.h < b.y - margin
+    ) {
+      attacks.splice(i, 1);
+    }
+  }
+}
+
+function drawAttacks() {
+  ctx.fillStyle = 'white';
+  for (const a of attacks) {
+    ctx.fillRect(a.x, a.y, a.w, a.h);
+  }
+}
 
 function update() {
   if (keys['ArrowLeft']) player.x -= player.speed;
@@ -80,6 +168,8 @@ function update() {
   if (player.x > maxX) player.x = maxX;
   if (player.y < minY) player.y = minY;
   if (player.y > maxY) player.y = maxY;
+
+  updateAttacks();
 }
 
 function draw() {
@@ -111,6 +201,7 @@ function draw() {
   ctx.lineWidth = battleBox.borderWidth;
   ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
 
+  drawAttacks();
 
   ctx.fillStyle = 'red';
   ctx.fillRect(player.x, player.y, player.size, player.size);
