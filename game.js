@@ -65,20 +65,19 @@ document.addEventListener('keyup', (e) => {
   keys[e.key] = false;
 });
 
-// ===== SALDIRI SİSTEMİ =====
 const ATTACK = {
   startRate: 1.5,      // başlangıçta saniyede kaç saldırı
-  maxRate: 20,         // üst sınır: saniyede en fazla 20 saldırı
+  maxRate: 15,         // üst sınır: saniyede en fazla 20 saldırı
   rateGrowth: 0.15,    // her saniye hız artışı (saldırı sayısı/sn)
   startSpeed: 80,      // başlangıç hızı (piksel/sn)
-  maxSpeed: 260,       // maksimum hız
+  maxSpeed: 180,       // maksimum hız
   speedGrowth: 1.5,    // her saniye hız artışı
-  minOffset: 10,       // kutunun dışından minimum uzaklık
-  maxOffset: 20,       // kutunun dışından maksimum uzaklık
+  minOffset: 30,       // kutunun dışından minimum uzaklık
+  maxOffset: 40,       // kutunun dışından maksimum uzaklık
   lineChance: 0.4,     // çizgi olma ihtimali (kalanı 1px kare)
   lineLength: [20, 50],
-  lineThickness: 2,
-  dotSize: 1           // 1px çok küçük görünürse 2 yap
+  lineThickness: 3,
+  dotSize: 2           // 1px çok küçük görünürse 2 yap
 };
 
 const attacks = [];
