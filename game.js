@@ -65,67 +65,166 @@ document.addEventListener('keyup', (e) => {
   keys[e.key] = false;
 });
 
+// ===== SALDIRI SİSTEMİ (yönlendirmeli) =====
 const ATTACK = {
-  startRate: 1.5,      // başlangıçta saniyede kaç saldırı
-  maxRate: 15,         // üst sınır: saniyede en fazla 20 saldırı
-  rateGrowth: 0.15,    // her saniye hız artışı (saldırı sayısı/sn)
-  startSpeed: 80,      // başlangıç hızı (piksel/sn)
-  maxSpeed: 180,       // maksimum hız
-  speedGrowth: 1.5,    // her saniye hız artışı
-  minOffset: 30,       // kutunun dışından minimum uzaklık
-  maxOffset: 40,       // kutunun dışından maksimum uzaklık
-  lineChance: 0.4,     // çizgi olma ihtimali (kalanı 1px kare)
+  startRate: 1.5,       // başlangıçta saniyede saldırı sayısı
+  maxRate: 20,          // üst sınır
+  rateGrowth: 0.15,     // her saniye artış
+  startSpeed: 80,
+  maxSpeed: 260,
+  speedGrowth: 1.5,
+  minOffset: 10,
+  maxOffset: 20,
+  lineChance: 0.4,
   lineLength: [20, 50],
-  lineThickness: 3,
-  dotSize: 4           // 1px çok küçük görünürse 2 yap
+  lineThickness: 2,
+  dotSize: 1,
+  rampSeconds: 180,     // zorluk 3 dakikada maksimuma ulaşır
+  roundStart: 8,        // ilk tur süresi (sn)
+  roundEnd: 4.5,        // en zor turun süresi (sn)
+  safeHalfStart: 45,    // güvenli bölge yarı genişliği (başta)
+  safeHalfEnd: 22       // güvenli bölge yarı genişliği (sonda)
 };
 
 const attacks = [];
-let attackStartTime = performance.now();
-let lastAttackTime = performance.now();
+const attackStartTime = performance.now();
+let lastAttackTime = attackStartTime;
 let spawnAccumulator = 0;
 
-function rand(min, max) {
-  return min + Math.random() * (max - min);
+function rand(min, max) { return min + Math.random() * (max - min); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function safeHalf(d) { return lerp(ATTACK.safeHalfStart, ATTACK.safeHalfEnd, d); }
+
+// [min, max] aralığında, uzunluğu len olan parçayı [ex1, ex2] bandının DIŞINDA seçer
+function pickOutside(min, max, len, ex1, ex2) {
+  const hiA = Math.min(max - len, ex1 - len);
+  const loB = Math.max(min, ex2);
+  const hiB = max - len;
+  const lenA = Math.max(0, hiA - min);
+  const lenB = Math.max(0, hiB - loB);
+  const total = lenA + lenB;
+  if (total <= 0) return null;
+  const r = Math.random() * total;
+  return r < lenA ? min + r : loB + (r - lenA);
 }
 
-function spawnAttack(speed) {
+// dir > 0: aralığın üst kısmı, dir < 0: alt kısmı, 0: her yer
+function pickAxis(lo, hi, dir) {
+  if (hi < lo) return (lo + hi) / 2;
+  if (dir > 0) return rand(lo + (hi - lo) * 0.6, hi);
+  if (dir < 0) return rand(lo, lo + (hi - lo) * 0.4);
+  return rand(lo, hi);
+}
+
+// Bir tur planı: hangi yönlerden saldırı gelecek + gizli güvenli nokta
+function makePlan(d) {
+  const all = [0, 1, 2, 3]; // 0 sol, 1 sağ, 2 üst, 3 alt
+  for (let i = 3; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [all[i], all[j]] = [all[j], all[i]];
+  }
+  let n = d < 0.15 ? 1 : d < 0.4 ? 2 : 3;
+  if (d > 0.8 && Math.random() < 0.4) n = 4;
+  const sides = all.slice(0, n);
+
+  // Saldırıların iteceği yön (oyuncunun kaçması gereken taraf)
+  let px = 0, py = 0;
+  for (const s of sides) {
+    if (s === 0) px++;
+    if (s === 1) px--;
+    if (s === 2) py++;
+    if (s === 3) py--;
+  }
+
+  const b = battleBox, bw = b.borderWidth, h = safeHalf(d);
+  const x = pickAxis(b.x + bw + h, b.x + b.width - bw - h, Math.sign(px));
+  const y = pickAxis(b.y + bw + h, b.y + b.height - bw - h, Math.sign(py));
+  return { sides, x, y };
+}
+
+const round = {
+  cur: makePlan(0),
+  next: makePlan(0),
+  end: performance.now() / 1000 + ATTACK.roundStart
+};
+
+function spawnAttack(speed, d, t) {
   const b = battleBox;
-  const side = Math.floor(Math.random() * 4);
+  const side = round.cur.sides[Math.floor(Math.random() * round.cur.sides.length)];
   const offset = rand(ATTACK.minOffset, ATTACK.maxOffset);
   const isLine = Math.random() < ATTACK.lineChance;
   const length = isLine ? rand(ATTACK.lineLength[0], ATTACK.lineLength[1]) : ATTACK.dotSize;
   const thick = isLine ? ATTACK.lineThickness : ATTACK.dotSize;
+  const horizontalMove = side < 2; // sol/sağdan gelenler yatay hareket eder
 
-  let a;
-  if (side === 0 || side === 1) {
-    a = { w: thick, h: length };
-    a.y = b.y + rand(0, b.height - a.h);
-    a.x = side === 0 ? b.x - offset - a.w : b.x + b.width + offset;
-    a.vx = side === 0 ? speed : -speed;
-    a.vy = 0;
+  const w = horizontalMove ? thick : length;
+  const h = horizontalMove ? length : thick;
+  const half = safeHalf(d);
+
+  let x, y, vx = 0, vy = 0, dist;
+  if (horizontalMove) {
+    x = side === 0 ? b.x - offset - w : b.x + b.width + offset;
+    vx = side === 0 ? speed : -speed;
+    dist = Math.abs(round.cur.x - x);
   } else {
-    a = { w: length, h: thick };
-    a.x = b.x + rand(0, b.width - a.w);
-    a.y = side === 2 ? b.y - offset - a.h : b.y + b.height + offset;
-    a.vx = 0;
-    a.vy = side === 2 ? speed : -speed;
+    y = side === 2 ? b.y - offset - h : b.y + b.height + offset;
+    vy = side === 2 ? speed : -speed;
+    dist = Math.abs(round.cur.y - y);
   }
-  attacks.push(a);
+
+  // Saldırı güvenli noktaya ne zaman ulaşır? Ona göre hangi turun bölgesi korunacak
+  const ta = t + dist / speed;
+  const pad = 0.6 + 140 / speed;
+  const A = round.cur, B = round.next;
+  let R;
+  if (ta < round.end - pad) {
+    R = { x1: A.x - half, x2: A.x + half, y1: A.y - half, y2: A.y + half };
+  } else if (ta > round.end + pad) {
+    R = { x1: B.x - half, x2: B.x + half, y1: B.y - half, y2: B.y + half };
+  } else {
+    // Geçiş: iki nokta arasındaki tüm alan boş kalır
+    R = {
+      x1: Math.min(A.x, B.x) - half, x2: Math.max(A.x, B.x) + half,
+      y1: Math.min(A.y, B.y) - half, y2: Math.max(A.y, B.y) + half
+    };
+  }
+
+  if (horizontalMove) {
+    y = pickOutside(b.y, b.y + b.height, h, R.y1, R.y2);
+    if (y === null) return;
+  } else {
+    x = pickOutside(b.x, b.x + b.width, w, R.x1, R.x2);
+    if (x === null) return;
+  }
+
+  // Saldırı kutuya ne kadar girer? Başta kısa (oyuncu kaçar), sonra tam geçer
+  const span = offset + (horizontalMove ? b.width + w : b.height + h) + 30;
+  const frac = Math.min(1, rand(lerp(0.35, 1, d), lerp(0.6, 1.25, d)));
+
+  attacks.push({ x, y, w, h, vx, vy, travel: frac * span, fade: frac < 1 });
 }
 
 function updateAttacks() {
   const now = performance.now();
+  const t = now / 1000;
   const dt = Math.min((now - lastAttackTime) / 1000, 0.05);
   lastAttackTime = now;
 
   const elapsed = (now - attackStartTime) / 1000;
+  const d = Math.min(1, elapsed / ATTACK.rampSeconds);
   const rate = Math.min(ATTACK.maxRate, ATTACK.startRate + elapsed * ATTACK.rateGrowth);
   const speed = Math.min(ATTACK.maxSpeed, ATTACK.startSpeed + elapsed * ATTACK.speedGrowth);
 
+  // Yeni tur
+  if (t >= round.end) {
+    round.cur = round.next;
+    round.next = makePlan(d);
+    round.end = t + lerp(ATTACK.roundStart, ATTACK.roundEnd, d);
+  }
+
   spawnAccumulator += rate * dt;
   while (spawnAccumulator >= 1) {
-    spawnAttack(speed);
+    spawnAttack(speed, d, t);
     spawnAccumulator -= 1;
   }
 
@@ -135,8 +234,10 @@ function updateAttacks() {
     const a = attacks[i];
     a.x += a.vx * dt;
     a.y += a.vy * dt;
+    a.travel -= Math.hypot(a.vx, a.vy) * dt;
 
     if (
+      a.travel <= 0 ||
       a.x > b.x + b.width + margin || a.x + a.w < b.x - margin ||
       a.y > b.y + b.height + margin || a.y + a.h < b.y - margin
     ) {
@@ -148,9 +249,16 @@ function updateAttacks() {
 function drawAttacks() {
   ctx.fillStyle = 'white';
   for (const a of attacks) {
+    ctx.globalAlpha = a.fade ? Math.max(0, Math.min(1, a.travel / 25)) : 1;
     ctx.fillRect(a.x, a.y, a.w, a.h);
   }
+  ctx.globalAlpha = 1;
+  const hh = safeHalf(Math.min(1, (performance.now() - attackStartTime) / 1000 / ATTACK.rampSeconds));
+  ctx.strokeStyle = 'rgba(0,255,0,0.4)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(round.cur.x - hh, round.cur.y - hh, hh * 2, hh * 2);
 }
+// ===== SALDIRI SİSTEMİ SONU =====
 
 function update() {
   if (keys['ArrowLeft']) player.x -= player.speed;
