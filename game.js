@@ -68,17 +68,17 @@ document.addEventListener('keyup', (e) => {
 // ===== SALDIRI SİSTEMİ (yönlendirmeli) =====
 const ATTACK = {
   startRate: 1.5,       // başlangıçta saniyede saldırı sayısı
-  maxRate: 14,          // üst sınır
+  maxRate: 8,          // üst sınır
   rateGrowth: 0.15,     // her saniye artış
   startSpeed: 80,
   maxSpeed: 155,
   speedGrowth: 1.5,
   minOffset: 10,
   maxOffset: 20,
-  lineChance: 0.4,
+  lineChance: 0.6,
   lineLength: [20, 50],
-  lineThickness: 2,
-  dotSize: 2,
+  lineThickness: 3,
+  dotSize: 3,
   rampSeconds: 180,     // zorluk 3 dakikada maksimuma ulaşır
   roundStart: 8,        // ilk tur süresi (sn)
   roundEnd: 4.5,        // en zor turun süresi (sn)
@@ -136,21 +136,53 @@ function makePlan(d) {
     if (s === 3) py--;
   }
 
-  const b = battleBox, bw = b.borderWidth, h = safeHalf(d);
-  const x = pickAxis(b.x + bw + h, b.x + b.width - bw - h, Math.sign(px));
-  const y = pickAxis(b.y + bw + h, b.y + b.height - bw - h, Math.sign(py));
+  if (round) {
+    const maxJump = 110;
+    x = Math.max(round.cur.x - maxJump, Math.min(round.cur.x + maxJump, x));
+    y = Math.max(round.cur.y - maxJump, Math.min(round.cur.y + maxJump, y));
+  }
+  return { sides, x, y };
   return { sides, x, y };
 }
 
-const round = {
-  cur: makePlan(0),
-  next: makePlan(0),
-  end: performance.now() / 1000 + ATTACK.roundStart
-};
+let round = null;
+round = { cur: makePlan(0), next: null, end: 0 };
+round.next = makePlan(0);
+round.end = performance.now() / 1000 + ATTACK.roundStart;
+
+// Oyuncuyu güvenli bölgeye doğru iten yönü ağırlıklı seçer
+function pickSide(d) {
+  const px = player.x + player.size / 2;
+  const py = player.y + player.size / 2;
+  const dx = round.cur.x - px;   // + ise güvenli bölge sağda
+  const dy = round.cur.y - py;   // + ise güvenli bölge aşağıda
+
+  // Her yön için ağırlık: 0 sol, 1 sağ, 2 üst, 3 alt
+  // Güvenli bölge solda ise oyuncuyu sola itmek için SAĞdan saldırı gelir
+  const strength = 1 + 3 * d;          // oyun ilerledikçe yönlendirme güçlenir
+  const w = [0.4, 0.4, 0.4, 0.4];      // taban: her yönden az da olsa gelir
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  const total = ax + ay + 1;
+
+  if (dx < 0) w[1] += strength * (ax / total) * 2;  // bölge solda -> sağdan saldır
+  if (dx > 0) w[0] += strength * (ax / total) * 2;  // bölge sağda -> soldan saldır
+  if (dy < 0) w[3] += strength * (ay / total) * 2;  // bölge yukarıda -> alttan saldır
+  if (dy > 0) w[2] += strength * (ay / total) * 2;  // bölge aşağıda -> yukarıdan saldır
+
+  // Sadece bu turda izin verilen yönleri kullan
+  let sum = 0;
+  const ws = round.cur.sides.map(s => { sum += w[s]; return w[s]; });
+  let r = Math.random() * sum;
+  for (let i = 0; i < ws.length; i++) {
+    r -= ws[i];
+    if (r <= 0) return round.cur.sides[i];
+  }
+  return round.cur.sides[0];
+}
 
 function spawnAttack(speed, d, t) {
   const b = battleBox;
-  const side = round.cur.sides[Math.floor(Math.random() * round.cur.sides.length)];
+  const side = pickSide(d);
   const offset = rand(ATTACK.minOffset, ATTACK.maxOffset);
   const isLine = Math.random() < ATTACK.lineChance;
   const length = isLine ? rand(ATTACK.lineLength[0], ATTACK.lineLength[1]) : ATTACK.dotSize;
