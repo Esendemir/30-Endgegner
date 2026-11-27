@@ -68,17 +68,17 @@ document.addEventListener('keyup', (e) => {
 // ===== SALDIRI SİSTEMİ (yönlendirmeli) =====
 const ATTACK = {
   startRate: 1.5,       // başlangıçta saniyede saldırı sayısı
-  maxRate: 20,          // üst sınır
+  maxRate: 14,          // üst sınır
   rateGrowth: 0.15,     // her saniye artış
   startSpeed: 80,
-  maxSpeed: 260,
+  maxSpeed: 155,
   speedGrowth: 1.5,
   minOffset: 10,
   maxOffset: 20,
   lineChance: 0.4,
   lineLength: [20, 50],
   lineThickness: 2,
-  dotSize: 1,
+  dotSize: 2,
   rampSeconds: 180,     // zorluk 3 dakikada maksimuma ulaşır
   roundStart: 8,        // ilk tur süresi (sn)
   roundEnd: 4.5,        // en zor turun süresi (sn)
