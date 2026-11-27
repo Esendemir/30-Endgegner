@@ -45,14 +45,26 @@ const bosses = [
   { id: 30, name: "Endgegner", duration_seconds: 120 }
 ];
 
-function getRandomBoss(req, res) {
-  const boss = bosses[Math.floor(Math.random() * bosses.length)];
-  res.json({ ...boss, image: `/img/${boss.id}.png` });
+const BOSS_INTERVAL_MS = 5 * 60 * 1000; // 5 dakika
+
+function getCurrentBoss(req, res) {
+  const now = Date.now();
+  const slot = Math.floor(now / BOSS_INTERVAL_MS);
+
+  const boss = bosses[(slot * 7) % bosses.length];
+
+  const nextChangeSeconds = Math.ceil(((slot + 1) * BOSS_INTERVAL_MS - now) / 1000);
+
+  res.json({
+    ...boss,
+    image: `/img/${boss.id}.png`,
+    next_change_seconds: nextChangeSeconds
+  });
 }
 
 // API endpoints that return a random boss
-app.get('/api/v1/bosses/random', getRandomBoss);
-app.get('/api/boss', getRandomBoss);
+app.get('/api/v1/bosses/random', getCurrentBoss);
+app.get('/api/boss', getCurrentBoss);
 
 // Start the server
 const PORT = process.env.PORT || 3000;

@@ -5,6 +5,9 @@ let bossName = 'BOSS';
 const bossImage = new Image();
 let bossImageLoaded = false;
 
+let changeAt = 0;
+let bossTimer;
+
 bossImage.onload = () => {
   bossImageLoaded = true;
 };
@@ -26,6 +29,10 @@ async function loadBossData() {
     if (data && data.image) {
       setBossImage(data.image);
     }
+    const waitMs= data.next_chamge_seconds * 1000;
+    changeAt = Date.now() + waitMs;
+    clearTimeout(bossTimer);
+    bossTimer = setTimeout(loadBossData, waitMs + 500);
   } catch (err) {
     console.error('Boss verisi alınamadı:', err);
   }
@@ -85,11 +92,18 @@ function draw() {
   ctx.textAlign = 'center';
   ctx.fillText(bossName, canvas.width / 2, 100);
 
+  const remaining = Math.max(0, Math.ceil((changeAt - Date.now()) / 1000));
+  const min = Math.floor(remaining / 60);
+  const sec = String(remaining % 60).padStart(2, '0');
+  ctx.font = '14px monospace';
+  ctx.fillText(`Nächster Boss in ${min}:${sec}`, canvas.width / 2, 40);
+  ctx.font = '20px monospace';
+
   if (bossImageLoaded) {
   const imgWidth = 64;
   const imgHeight = 64;
   const imgX = (canvas.width - imgWidth) / 2; 
-  const imgY = 115; // Yazının altında, battleBox'ın (y: 220) üstünde
+  const imgY = 90; // Yazının altında, battleBox'ın (y: 220) üstünde
 
   ctx.drawImage(bossImage, imgX, imgY, imgWidth, imgHeight);
 }
