@@ -34,7 +34,7 @@ async function loadBossData() {
 loadBossData();
 
 const battleBox = {
-  x: 200,
+  x: 190,
   y: 190,
   width: 270,
   height: 245,
